@@ -1,0 +1,11 @@
+﻿<Window
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:DashboardTest" x:Class="DashboardTest.MainWindow"
+        Title="MainWindow" Height="468.65" Width="786">
+    <Grid>
+        <local:GridSystem x:Name="gridSystem" HorizontalAlignment="Left" Height="352" Margin="157,44,0,0" VerticalAlignment="Top" Width="555"/>
+        <ListBox x:Name="sourceLbx"  ItemsSource="{Binding Shapes}" HorizontalAlignment="Left" Height="202" Margin="16,44,0,0" VerticalAlignment="Top" Width="100"/>
+        <CheckBox x:Name="editChk" Content="Edit" HorizontalAlignment="Left" Margin="608,10,0,0" VerticalAlignment="Top" Checked="CheckBox_Checked" Click="editChk_Click"/>
+    </Grid>
+</Window>
