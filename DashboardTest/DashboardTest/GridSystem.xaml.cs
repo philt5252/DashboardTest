@@ -24,7 +24,8 @@ namespace DashboardTest
         private List<Shape> corners = new List<Shape>();
         private List<WidgetHost> widgetHosts = new List<WidgetHost>();
         private Brush cornerBrush = new SolidColorBrush(Color.FromRgb(255, 0, 0));
-        private Control previewControl;
+        private WidgetHost editWidgetHost;
+        private Dictionary<WidgetHost, Rect> movedWidgetOrigins = new Dictionary<WidgetHost, Rect>(); 
 
         private bool isEdit = false;
 
@@ -76,11 +77,11 @@ namespace DashboardTest
             if (!IsEdit)
                 return;
 
-            previewControl.Opacity = 1;
+            editWidgetHost.Opacity = 1;
 
-            if(!widgetHosts.Contains(previewControl))
+            if(!widgetHosts.Contains(editWidgetHost))
             {
-                WidgetHost host = previewControl as WidgetHost;
+                WidgetHost host = editWidgetHost as WidgetHost;
                 widgetHosts.Add(host);
 
                 host.IsResizing += host_IsResizing;
@@ -88,7 +89,133 @@ namespace DashboardTest
             }
                 
 
-            previewControl = null;
+            editWidgetHost = null;
+        }
+
+        void GridSystem_DragOver(object sender, DragEventArgs e)
+        {
+            if (!IsEdit)
+                return;
+
+            if (editWidgetHost == null)
+            {
+                editWidgetHost = e.Data.GetData(e.Data.GetFormats()[0]) as WidgetHost;
+
+                editWidgetHost.Opacity = 0.5;
+
+                if (!mainCanvas.Children.Contains(editWidgetHost))
+                {
+                    editWidgetHost.Height = 100;
+                    editWidgetHost.Width = 100;
+                    mainCanvas.Children.Add(editWidgetHost);
+                }
+
+            }
+
+            Point mousePos = e.GetPosition(mainCanvas);
+
+            int xLoc = (int)((int)mousePos.X / 50) * 50;
+            int yLoc = (int)((int)mousePos.Y / 50) * 50;
+
+            int controlY = (int)Canvas.GetTop(editWidgetHost);
+            int controlX = (int)Canvas.GetLeft(editWidgetHost);
+
+            Rect controlBounds = GetRect(editWidgetHost);
+
+            //if(Canvas.GetTop(editWidgetHost) != yLoc
+           //     || Canvas.GetLeft(editWidgetHost) != xLoc)
+           // {
+                foreach(WidgetHost host in widgetHosts)
+                {
+                    if (editWidgetHost.Equals(host))
+                        continue;
+
+                    Rect hostBounds = GetRect(host);
+
+                    if (movedWidgetOrigins.ContainsKey(host))
+                    {
+                        Rect tempHostBounds = GetRect(host);
+
+                        int xOffset = 0;
+
+                        do
+                        {
+                            if (movedWidgetOrigins[host].Left < tempHostBounds.Left)
+                            {
+                                xOffset -= 50;
+                            }
+
+                            tempHostBounds.Offset(xOffset, 0);
+
+                            if (!tempHostBounds.IntersectsWith(controlBounds))
+                            {
+                                Canvas.SetTop(host, tempHostBounds.Top);
+                                Canvas.SetLeft(host, tempHostBounds.Left);
+                                break;
+                            }
+
+                            
+                        } while (tempHostBounds.Left > movedWidgetOrigins[host].Left);
+
+                        if (!movedWidgetOrigins[host].IntersectsWith(controlBounds))
+                        {
+                            Canvas.SetTop(host, movedWidgetOrigins[host].Top);
+                            Canvas.SetLeft(host, movedWidgetOrigins[host].Left);
+                            movedWidgetOrigins.Remove(host);
+                            continue;
+                        }
+                    }
+
+                    if (controlBounds.IntersectsWith(hostBounds))
+                    {
+                        int offsetX = 0;
+                        int offsetY = 0;
+
+                        bool offsetLocFound = false;
+
+                        while (!offsetLocFound && hostBounds.Right <= Width)
+                        {
+                            offsetX += 50;
+                            hostBounds.Offset(offsetX, 0);
+
+                            if (!controlBounds.IntersectsWith(hostBounds))
+                            {
+                                offsetLocFound = true;
+                            }
+                        }
+
+                        while (!offsetLocFound && hostBounds.Left > 0)
+                        {
+                            offsetX -= 50;
+                            hostBounds.Offset(offsetX, 0);
+
+                            if (!controlBounds.IntersectsWith(hostBounds))
+                            {
+                                offsetLocFound = true;
+                            }
+                        }
+
+                        if (offsetLocFound)
+                        {
+                            if (!movedWidgetOrigins.ContainsKey(host))
+                                movedWidgetOrigins[host] = GetRect(host);
+
+                            Canvas.SetTop(host, hostBounds.Top);
+                            Canvas.SetLeft(host, hostBounds.Left);
+                        }
+                        
+                    }
+                }
+            //}
+
+            Canvas.SetTop(editWidgetHost, yLoc);
+            Canvas.SetLeft(editWidgetHost, xLoc);
+
+        }
+
+        Rect GetRect(WidgetHost host)
+        {
+            return new Rect(new Point(Canvas.GetLeft(host), Canvas.GetTop(host)), new Size(host.Width-1, host.Height-1));
         }
 
         void host_ResizingComplete(object sender, EventArgs e)
@@ -99,23 +226,23 @@ namespace DashboardTest
 
         void host_IsResizing(object sender, EventArgs e)
         {
-            previewControl = sender as WidgetHost;
+            editWidgetHost = sender as WidgetHost;
             mainCanvas.MouseMove += mainCanvas_MouseMove;
         }
 
         void mainCanvas_MouseMove(object sender, MouseEventArgs e)
         {
-            if(e.LeftButton == MouseButtonState.Pressed)
+            if(e.LeftButton == MouseButtonState.Pressed && editWidgetHost != null)
             {
-                Point pos = e.GetPosition(previewControl);
+                Point pos = e.GetPosition(editWidgetHost);
 
-                //previewControl.Height = (int)(((int)pos.Y / 50) + 1) * 50;
-                //previewControl.Width = (int)(((int)pos.X / 50) + 1) * 50;
+                //editWidgetHost.Height = (int)(((int)pos.Y / 50) + 1) * 50;
+                //editWidgetHost.Width = (int)(((int)pos.X / 50) + 1) * 50;
 
-                previewControl.Height = pos.Y;
-                previewControl.Width = pos.X;
+                editWidgetHost.Height = pos.Y;
+                editWidgetHost.Width = pos.X;
             }
-            else if(e.LeftButton == MouseButtonState.Released && previewControl != null)
+            else if(e.LeftButton == MouseButtonState.Released && editWidgetHost != null)
             {
                 SnapResize();
             }
@@ -123,41 +250,11 @@ namespace DashboardTest
 
         private void SnapResize()
         {
-            previewControl.Height = (int)(((int)previewControl.Height / 50)+1) * 50;
-            previewControl.Width = (int)(((int)previewControl.Width / 50)+1) * 50;
+            editWidgetHost.Height = (int)(((int)editWidgetHost.Height / 50)+1) * 50;
+            editWidgetHost.Width = (int)(((int)editWidgetHost.Width / 50)+1) * 50;
 
             
-            previewControl = null;
-
-        }
-
-        void GridSystem_DragOver(object sender, DragEventArgs e)
-        {
-            if (!IsEdit)
-                return;
-
-            if (previewControl == null)
-            {
-                previewControl = e.Data.GetData(e.Data.GetFormats()[0]) as Control;
-                
-                previewControl.Opacity = 0.5;
-
-                if(!mainCanvas.Children.Contains(previewControl))
-                {
-                    previewControl.Height = 100;
-                    previewControl.Width = 100;
-                    mainCanvas.Children.Add(previewControl);
-                }
-                    
-            }
-
-            Point mousePos = e.GetPosition(mainCanvas);
-
-            int xLoc = (int)((int)mousePos.X / 50) * 50;
-            int yLoc = (int)((int)mousePos.Y / 50) * 50;
-
-            Canvas.SetTop(previewControl, yLoc);
-            Canvas.SetLeft(previewControl, xLoc);
+            editWidgetHost = null;
 
         }
 

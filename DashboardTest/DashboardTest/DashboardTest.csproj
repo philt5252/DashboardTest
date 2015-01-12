@@ -56,6 +56,7 @@
     <Compile Include="CircleControl.xaml.cs">
       <DependentUpon>CircleControl.xaml</DependentUpon>
     </Compile>
+    <Compile Include="Extensions.cs" />
     <Compile Include="GridSystem.xaml.cs">
       <DependentUpon>GridSystem.xaml</DependentUpon>
     </Compile>
