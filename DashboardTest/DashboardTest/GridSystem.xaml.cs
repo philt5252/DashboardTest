@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -25,7 +26,7 @@ namespace DashboardTest
         private List<WidgetHost> widgetHosts = new List<WidgetHost>();
         private Brush cornerBrush = new SolidColorBrush(Color.FromRgb(255, 0, 0));
         private WidgetHost editWidgetHost;
-        private Dictionary<WidgetHost, Rect> movedWidgetOrigins = new Dictionary<WidgetHost, Rect>(); 
+        private Dictionary<WidgetHost, Rect> movedWidgetOrigins = new Dictionary<WidgetHost, Rect>();
 
         private bool isEdit = false;
 
@@ -65,6 +66,42 @@ namespace DashboardTest
         public GridSystem()
         {
             InitializeComponent();
+
+            Task task = new Task(() =>
+            {
+                int increase = 0;
+                int diff = 1;
+
+                while (true)
+                {
+
+                    if (movedWidgetOrigins.Count == 0)
+                    {
+                        diff = 1;
+                        increase = 0;
+                        continue;
+                    }
+
+                    increase += diff;
+
+                    if (increase % 15 == 0)
+                        diff *= -1;
+                    
+
+                    Thread.Sleep(25);
+                    foreach (WidgetHost widgetHost in movedWidgetOrigins.Keys)
+                    {
+                        widgetHost.Dispatcher.BeginInvoke(new Action(() =>
+                        {
+                            widgetHost.Width += diff;
+                            widgetHost.Height += diff;
+                        }));
+
+                    }
+                }
+            });
+
+            task.Start();
 
             Loaded += GridSystem_Loaded;
             SizeChanged += GridSystem_SizeChanged;
@@ -161,6 +198,9 @@ namespace DashboardTest
                         {
                             Canvas.SetTop(host, movedWidgetOrigins[host].Top);
                             Canvas.SetLeft(host, movedWidgetOrigins[host].Left);
+
+                            host.Height = movedWidgetOrigins[host].Height+1;
+                            host.Width = movedWidgetOrigins[host].Width+1;
                             movedWidgetOrigins.Remove(host);
                             continue;
                         }
