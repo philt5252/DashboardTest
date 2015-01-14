@@ -70,22 +70,26 @@ namespace DashboardTest
             Task task = new Task(() =>
             {
                 int increase = 0;
-                int diff = 1;
+                int diff =-1;
 
                 while (true)
                 {
 
                     if (movedWidgetOrigins.Count == 0)
                     {
-                        diff = 1;
+                        diff = -1;
                         increase = 0;
                         continue;
                     }
 
                     increase += diff;
 
-                    if (increase % 15 == 0)
+                    if (increase % 10 == 0)
+                    {
                         diff *= -1;
+                        increase = 0;
+                    }
+                        
                     
 
                     Thread.Sleep(25);
@@ -127,6 +131,16 @@ namespace DashboardTest
                 
 
             editWidgetHost = null;
+
+            var tempDict = new Dictionary<WidgetHost, Rect>(movedWidgetOrigins);
+
+            movedWidgetOrigins.Clear();
+
+            foreach (WidgetHost widgetHost in tempDict.Keys)
+            {
+                widgetHost.Width = tempDict[widgetHost].Width+1;
+                widgetHost.Height = tempDict[widgetHost].Height+1;
+            }
         }
 
         void GridSystem_DragOver(object sender, DragEventArgs e)
@@ -168,31 +182,11 @@ namespace DashboardTest
                         continue;
 
                     Rect hostBounds = GetRect(host);
+                    Rect origHostBounds = GetRect(host);
 
                     if (movedWidgetOrigins.ContainsKey(host))
                     {
-                        Rect tempHostBounds = GetRect(host);
-
-                        int xOffset = 0;
-
-                        do
-                        {
-                            if (movedWidgetOrigins[host].Left < tempHostBounds.Left)
-                            {
-                                xOffset -= 50;
-                            }
-
-                            tempHostBounds.Offset(xOffset, 0);
-
-                            if (!tempHostBounds.IntersectsWith(controlBounds))
-                            {
-                                Canvas.SetTop(host, tempHostBounds.Top);
-                                Canvas.SetLeft(host, tempHostBounds.Left);
-                                break;
-                            }
-
-                            
-                        } while (tempHostBounds.Left > movedWidgetOrigins[host].Left);
+                        TryMoveLeftTowardsPreviousSpot(host, controlBounds);
 
                         if (!movedWidgetOrigins[host].IntersectsWith(controlBounds))
                         {
@@ -208,14 +202,15 @@ namespace DashboardTest
 
                     if (controlBounds.IntersectsWith(hostBounds))
                     {
-                        int offsetX = 0;
-                        int offsetY = 0;
+                        int offsetX = 50;
+                        int offsetY = 50;
 
                         bool offsetLocFound = false;
 
-                        while (!offsetLocFound && hostBounds.Right <= Width)
+                        hostBounds = origHostBounds;
+
+                        while (!offsetLocFound && hostBounds.Right < Width-50)
                         {
-                            offsetX += 50;
                             hostBounds.Offset(offsetX, 0);
 
                             if (!controlBounds.IntersectsWith(hostBounds))
@@ -224,9 +219,13 @@ namespace DashboardTest
                             }
                         }
 
+                        if(!offsetLocFound)
+                            hostBounds = origHostBounds;
+
+                        offsetX = -50;
+
                         while (!offsetLocFound && hostBounds.Left > 0)
                         {
-                            offsetX -= 50;
                             hostBounds.Offset(offsetX, 0);
 
                             if (!controlBounds.IntersectsWith(hostBounds))
@@ -238,7 +237,12 @@ namespace DashboardTest
                         if (offsetLocFound)
                         {
                             if (!movedWidgetOrigins.ContainsKey(host))
+                            {
                                 movedWidgetOrigins[host] = GetRect(host);
+                                host.Width -= 5;
+                                host.Height -= 5;
+                            }
+                                
 
                             Canvas.SetTop(host, hostBounds.Top);
                             Canvas.SetLeft(host, hostBounds.Left);
@@ -251,6 +255,30 @@ namespace DashboardTest
             Canvas.SetTop(editWidgetHost, yLoc);
             Canvas.SetLeft(editWidgetHost, xLoc);
 
+        }
+
+        private void TryMoveLeftTowardsPreviousSpot(WidgetHost host, Rect controlBounds)
+        {
+            Rect tempHostBounds = GetRect(host);
+
+            int xOffset = 0;
+
+            do
+            {
+                if (movedWidgetOrigins[host].Left < tempHostBounds.Left)
+                {
+                    xOffset -= 50;
+                }
+
+                tempHostBounds.Offset(xOffset, 0);
+
+                if (!tempHostBounds.IntersectsWith(controlBounds))
+                {
+                    Canvas.SetTop(host, tempHostBounds.Top);
+                    Canvas.SetLeft(host, tempHostBounds.Left);
+                    break;
+                }
+            } while (tempHostBounds.Left > movedWidgetOrigins[host].Left);
         }
 
         Rect GetRect(WidgetHost host)
