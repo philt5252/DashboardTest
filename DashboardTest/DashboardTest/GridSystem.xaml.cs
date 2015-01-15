@@ -72,37 +72,41 @@ namespace DashboardTest
             Task task = new Task(() =>
             {
                 int increase = 0;
-                int diff =-1;
+                int diff = -1;
 
                 while (true)
                 {
-
-                    if (movedWidgetOrigins.Count == 0)
+                    try
                     {
-                        diff = -1;
-                        increase = 0;
-                        continue;
-                    }
-
-                    increase += diff;
-
-                    if (increase % 10 == 0)
-                    {
-                        diff *= -1;
-                        increase = 0;
-                    }
-                        
-                    
-
-                    Thread.Sleep(25);
-                    foreach (WidgetHost widgetHost in movedWidgetOrigins.Keys)
-                    {
-                        widgetHost.Dispatcher.BeginInvoke(new Action(() =>
+                        if (movedWidgetOrigins.Count == 0)
                         {
-                            widgetHost.Width += diff;
-                            widgetHost.Height += diff;
-                        }));
+                            diff = -1;
+                            increase = 0;
+                            continue;
+                        }
 
+                        increase += diff;
+
+                        if (increase%10 == 0)
+                        {
+                            diff *= -1;
+                            increase = 0;
+                        }
+
+                        Thread.Sleep(25);
+                        foreach (WidgetHost widgetHost in movedWidgetOrigins.Keys)
+                        {
+                            widgetHost.Dispatcher.BeginInvoke(new Action(() =>
+                            {
+                                widgetHost.Width += diff;
+                                widgetHost.Height += diff;
+                            }));
+
+                        }
+                    }
+                    catch
+                    {
+                        
                     }
                 }
             });
@@ -122,7 +126,7 @@ namespace DashboardTest
 
             editWidgetHost.Opacity = 1;
 
-            if(!widgetHosts.Contains(editWidgetHost))
+            if (!widgetHosts.Contains(editWidgetHost))
             {
                 WidgetHost host = editWidgetHost as WidgetHost;
                 widgetHosts.Add(host);
@@ -130,7 +134,7 @@ namespace DashboardTest
                 host.IsResizing += host_IsResizing;
                 host.ResizingComplete += host_ResizingComplete;
             }
-                
+
 
             editWidgetHost = null;
 
@@ -140,8 +144,10 @@ namespace DashboardTest
 
             foreach (WidgetHost widgetHost in tempDict.Keys)
             {
-                widgetHost.Width = tempDict[widgetHost].Width+1;
-                widgetHost.Height = tempDict[widgetHost].Height+1;
+                widgetHost.Width = tempDict[widgetHost].Width + 1;
+                widgetHost.Height = tempDict[widgetHost].Height + 1;
+
+                SnapResize(widgetHost);
             }
         }
 
@@ -167,7 +173,7 @@ namespace DashboardTest
                     int controlY = (int)Canvas.GetTop(editWidgetHost);
                     int controlX = (int)Canvas.GetLeft(editWidgetHost);
 
-                    editWidgetHostOrigin = new Rect(new Point(controlX, controlY), 
+                    editWidgetHostOrigin = new Rect(new Point(controlX, controlY),
                                                     new Size(editWidgetHost.Width, editWidgetHost.Height));
                 }
 
@@ -179,6 +185,15 @@ namespace DashboardTest
 
             foreach (var widgetHost in calculateWidgetMovements.Keys)
             {
+
+                if (!movedWidgetOrigins.ContainsKey(widgetHost))
+                {
+                    movedWidgetOrigins[widgetHost] = GetRect(widgetHost);
+                    widgetHost.Width -= 5;
+                    widgetHost.Height -= 5;
+                }
+
+
                 Canvas.SetTop(widgetHost, calculateWidgetMovements[widgetHost].Y);
                 Canvas.SetLeft(widgetHost, calculateWidgetMovements[widgetHost].X);
             }
@@ -198,14 +213,23 @@ namespace DashboardTest
             foreach (WidgetHost widgetHost in movedWidgetOrigins.Keys)
             {
                 Rect origHostBounds = movedWidgetOrigins[widgetHost];
-                var shortestDistance = ShortestDistancesToFreeAreas(widgetHost);
+                var shortestDistance = ShortestDistanceToFreeAreas(widgetHost);
 
                 double distance = Math.Sqrt(Math.Pow((Canvas.GetLeft(widgetHost) - origHostBounds.X), 2)
                                             + Math.Pow(Canvas.GetTop(widgetHost) - origHostBounds.Y, 2));
 
                 if (distance > shortestDistance.Distance)
                 {
-                    if (!movedWidgetOrigins.ContainsKey(widgetHost))
+                    if (shortestDistance.Distance < 6)
+                    {
+                        Rect rect = movedWidgetOrigins[widgetHost];
+                        movedWidgetOrigins.Remove(widgetHost);
+                        widgetHost.Width = rect.Width + 1;
+                        widgetHost.Height = rect.Height + 1;
+
+                        SnapResize(widgetHost);
+                    }
+                    else if (!movedWidgetOrigins.ContainsKey(widgetHost))
                     {
                         movedWidgetOrigins[widgetHost] = GetRect(widgetHost);
                         widgetHost.Width -= 5;
@@ -218,7 +242,7 @@ namespace DashboardTest
             }
         }
 
-        private PointDistance ShortestDistancesToFreeAreas(WidgetHost widgetHost)
+        private PointDistance ShortestDistanceToFreeAreas(WidgetHost widgetHost)
         {
             Rect hostBounds = GetRect(widgetHost);
             Rect origHostBounds = movedWidgetOrigins.ContainsKey(widgetHost)
@@ -262,7 +286,7 @@ namespace DashboardTest
                 if (!controlBounds.IntersectsWith(hostBounds) || returnWidgetMovements.ContainsKey(widgetHost))
                     continue;
 
-                var widgetMovements = GetOptimalMovementsFor(widgetHost);
+                var widgetMovements = GetOptimalMovementsFor(widgetHost, new[] { sourceWidget }, double.MaxValue);
 
                 bool offsetLocFound = widgetMovements.Any();
 
@@ -270,26 +294,20 @@ namespace DashboardTest
                 {
                     foreach (var movedWidget in widgetMovements.Keys)
                     {
-                        if (!movedWidgetOrigins.ContainsKey(movedWidget))
-                        {
-                            movedWidgetOrigins[movedWidget] = GetRect(widgetHost);
-                            widgetHost.Width -= 5;
-                            widgetHost.Height -= 5;
-                        }
-
                         returnWidgetMovements[movedWidget] = widgetMovements[movedWidget];
                     }
 
-                    
+
                 }
             }
 
             return returnWidgetMovements;
         }
 
-        
 
-        private Dictionary<WidgetHost, PointDistance> GetOptimalMovementsFor(WidgetHost widgetHost)
+
+        private Dictionary<WidgetHost, PointDistance> GetOptimalMovementsFor(WidgetHost widgetHost,
+            IEnumerable<WidgetHost> immovableWidgets, double terminatingDistance)
         {
             Rect hostBounds = GetRect(widgetHost);
             Rect origHostBounds = movedWidgetOrigins.ContainsKey(widgetHost)
@@ -311,11 +329,13 @@ namespace DashboardTest
                     double distance = Math.Sqrt(Math.Pow((newRect.X - origHostBounds.X), 2)
                                                     + Math.Pow(newRect.Y - origHostBounds.Y, 2));
 
-                    if (distance >= shortestDistance.Distance)
+                    if (distance >= shortestDistance.Distance || distance >= terminatingDistance)
                         continue;
 
-                    if (!IntersectsOtherHosts(widgetHost, newRect, new[] {widgetHost}))
+                    if (!IntersectsOtherHosts(widgetHost, newRect, new[] { widgetHost }))
                     {
+                        optimalMovements.Clear();
+
                         shortestDistance.Distance = distance;
                         shortestDistance.X = x;
                         shortestDistance.Y = y;
@@ -324,99 +344,79 @@ namespace DashboardTest
                         continue;
                     }
 
+                    WidgetHost[] intersectedWidgets = GetIntersectingHosts(widgetHost, newRect).ToArray();
+
+                    if (intersectedWidgets.Intersect(immovableWidgets).Any())
+                    {
+                        continue;
+                    }
+
+                    Dictionary<WidgetHost, PointDistance> intersectedMovements =
+                        new Dictionary<WidgetHost, PointDistance>();
+
+                    foreach (var intersectedWidget in intersectedWidgets)
+                    {
+                        if (intersectedMovements.ContainsKey(intersectedWidget))
+                            continue;
+
+                        Dictionary<WidgetHost, PointDistance> optimalIntersectedMovements = GetOptimalMovementsFor(intersectedWidget,
+                            immovableWidgets.Union(new[] { widgetHost }.Union(intersectedMovements.Keys)), shortestDistance.Distance);
+
+
+                        foreach (var optimalIntersectedMovement in optimalIntersectedMovements)
+                        {
+                            intersectedMovements[optimalIntersectedMovement.Key] = optimalIntersectedMovement.Value;
+                        }
+
+                        distance += optimalIntersectedMovements.Sum(pd => pd.Value.Distance);
+                    }
+
+                    if (distance >= shortestDistance.Distance || distance >= terminatingDistance)
+                        continue;
+
+                    optimalMovements.Clear();
+
+                    shortestDistance.Distance = distance;
+                    shortestDistance.X = x;
+                    shortestDistance.Y = y;
+
                     optimalMovements[widgetHost] = shortestDistance;
+
+                    foreach (var intersectedMovement in intersectedMovements)
+                    {
+                        optimalMovements[intersectedMovement.Key] = intersectedMovement.Value;
+                    }
+
+
                 }
             }
 
             return optimalMovements;
         }
 
-        private IOrderedEnumerable<PointDistance> OrderedDistancesToOccupiedAreas(WidgetHost widgetHost, double terminalDistance)
-        {
-            Rect hostBounds = GetRect(widgetHost);
-            Rect origHostBounds = movedWidgetOrigins.ContainsKey(widgetHost)
-                ? movedWidgetOrigins[widgetHost]
-                : GetRect(widgetHost);
-
-            List<PointDistance> distancesToFreeAreas = new List<PointDistance>();
-
-            for (int y = 0; y < mainCanvas.ActualHeight; y += 50)
-            {
-                for (int x = 0; x < mainCanvas.ActualWidth; x += 50)
-                {
-                    if (hostBounds.X == x && hostBounds.Y == y)
-                        continue;
-
-                    Rect newRect = new Rect(x, y, origHostBounds.Width, origHostBounds.Height);
-
-                    double distance = Math.Sqrt(Math.Pow((newRect.X - origHostBounds.X), 2)
-                                                   + Math.Pow(newRect.Y - origHostBounds.Y, 2));
-
-                    if (distance < terminalDistance)
-                    {
-                        foreach (WidgetHost intersectedHost in GetIntersectingHosts(widgetHost, newRect, new WidgetHost[0]))
-                        {
-                            CalculateWidgetMovements(intersectedHost);
-                        }
-                    }
-
-                    if (!IntersectsOtherHosts(widgetHost, newRect, new[] { widgetHost }))
-                    {
-                       
-
-                        distancesToFreeAreas.Add(new PointDistance(x, y, distance));
-                    }
-                }
-            }
-            return distancesToFreeAreas.OrderBy(pd => pd.Distance);
-        }
-
         private bool IntersectsOtherHosts(WidgetHost host, Rect newHostLoc, IEnumerable<WidgetHost> exclusions)
         {
-            return GetIntersectingHosts(host, newHostLoc, exclusions).Any();
+            return GetIntersectingHosts(host, newHostLoc).Except(exclusions).Any();
         }
 
-        private IEnumerable<WidgetHost> GetIntersectingHosts(WidgetHost host, Rect newHostLoc, IEnumerable<WidgetHost> exclusions)
+        private IEnumerable<WidgetHost> GetIntersectingHosts(WidgetHost host, Rect newHostLoc)
         {
             return widgetHosts
-                .Union(new []{editWidgetHost})
-                .Except(exclusions.Union(new[] {host}))
+                .Union(new[] { editWidgetHost })
+                .Except(new[] { host })
                 .Where(h => GetRect(h).IntersectsWith(newHostLoc));
-        }
-
-        private void TryMoveLeftTowardsPreviousSpot(WidgetHost host, Rect controlBounds)
-        {
-            Rect tempHostBounds = GetRect(host);
-
-            int xOffset = 0;
-
-            do
-            {
-                if (movedWidgetOrigins[host].Left < tempHostBounds.Left)
-                {
-                    xOffset -= 50;
-                }
-
-                tempHostBounds.Offset(xOffset, 0);
-
-                if (!tempHostBounds.IntersectsWith(controlBounds))
-                {
-                    Canvas.SetTop(host, tempHostBounds.Top);
-                    Canvas.SetLeft(host, tempHostBounds.Left);
-                    break;
-                }
-            } while (tempHostBounds.Left > movedWidgetOrigins[host].Left);
         }
 
         Rect GetRect(WidgetHost host)
         {
-            return new Rect(new Point(Canvas.GetLeft(host), Canvas.GetTop(host)), new Size(host.Width-1, host.Height-1));
+            return new Rect(new Point(Canvas.GetLeft(host), Canvas.GetTop(host)), new Size(host.Width - 1, host.Height - 1));
         }
 
         void host_ResizingComplete(object sender, EventArgs e)
         {
             mainCanvas.MouseMove -= mainCanvas_MouseMove;
-            SnapResize();
+            SnapResize(editWidgetHost);
+            editWidgetHost = null;
         }
 
         void host_IsResizing(object sender, EventArgs e)
@@ -427,7 +427,7 @@ namespace DashboardTest
 
         void mainCanvas_MouseMove(object sender, MouseEventArgs e)
         {
-            if(e.LeftButton == MouseButtonState.Pressed && editWidgetHost != null)
+            if (e.LeftButton == MouseButtonState.Pressed && editWidgetHost != null)
             {
                 Point pos = e.GetPosition(editWidgetHost);
 
@@ -437,19 +437,22 @@ namespace DashboardTest
                 editWidgetHost.Height = pos.Y;
                 editWidgetHost.Width = pos.X;
             }
-            else if(e.LeftButton == MouseButtonState.Released && editWidgetHost != null)
+            else if (e.LeftButton == MouseButtonState.Released && editWidgetHost != null)
             {
-                SnapResize();
+                SnapResize(editWidgetHost);
             }
         }
 
-        private void SnapResize()
+        private void SnapResize(WidgetHost widgetHost)
         {
-            editWidgetHost.Height = (int)(((int)editWidgetHost.Height / 50)+1) * 50;
-            editWidgetHost.Width = (int)(((int)editWidgetHost.Width / 50)+1) * 50;
+            int extraHeight = widgetHost.Height%50 > 0 ? 1 : 0;
+            int extraWidth = widgetHost.Width % 50 > 0 ? 1 : 0;
 
-            
-            editWidgetHost = null;
+            widgetHost.Height = (int)(((int)widgetHost.Height / 50) + extraHeight) * 50;
+            widgetHost.Width = (int)(((int)widgetHost.Width / 50) + extraWidth) * 50;
+
+
+            widgetHost = null;
 
         }
 
