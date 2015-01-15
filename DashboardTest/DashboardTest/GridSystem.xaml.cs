@@ -1,4 +1,5 @@
 ﻿using System;
+using System.CodeDom;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
@@ -172,162 +173,59 @@ namespace DashboardTest
 
             }
 
+            TryToMoveMovedWidgetsToOrigins();
+
+            Dictionary<WidgetHost, PointDistance> calculateWidgetMovements = CalculateWidgetMovements(editWidgetHost);
+
+            foreach (var widgetHost in calculateWidgetMovements.Keys)
+            {
+                Canvas.SetTop(widgetHost, calculateWidgetMovements[widgetHost].Y);
+                Canvas.SetLeft(widgetHost, calculateWidgetMovements[widgetHost].X);
+            }
+
             Point mousePos = e.GetPosition(mainCanvas);
 
             int xLoc = (int)((int)mousePos.X / 50) * 50;
             int yLoc = (int)((int)mousePos.Y / 50) * 50;
-
-            
-
-            Rect controlBounds = GetRect(editWidgetHost);
-
-            foreach (WidgetHost widgetHost in widgetHosts)
-            {
-                if (editWidgetHost.Equals(widgetHost))
-                    continue;
-
-                Rect hostBounds = GetRect(widgetHost);
-                
-                if (!controlBounds.IntersectsWith(hostBounds))
-                    continue;
-
-                var keyValuePairs = OrderedDistancesToFreeAreas(widgetHost);
-
-                bool offsetLocFound = keyValuePairs.Any();
-
-                hostBounds.X = keyValuePairs.First().Key.X;
-                hostBounds.Y = keyValuePairs.First().Key.Y;
-
-                if (offsetLocFound)
-                {
-                    if (!movedWidgetOrigins.ContainsKey(widgetHost))
-                    {
-                        movedWidgetOrigins[widgetHost] = GetRect(widgetHost);
-                        widgetHost.Width -= 5;
-                        widgetHost.Height -= 5;
-                    }
-
-                    Canvas.SetTop(widgetHost, hostBounds.Top);
-                    Canvas.SetLeft(widgetHost, hostBounds.Left);
-                }
-            }
-
-            foreach (WidgetHost widgetHost in movedWidgetOrigins.Keys)
-            {
-                Rect origHostBounds = movedWidgetOrigins[widgetHost];
-                var distancesToFreeAreas = OrderedDistancesToFreeAreas(widgetHost);
-
-                KeyValuePair<Point, double>[] keyValuePairs = distancesToFreeAreas.OrderBy(kv => kv.Value).ToArray();
-
-                double distance = Math.Sqrt(Math.Pow((Canvas.GetLeft(widgetHost) - origHostBounds.X), 2)
-                                                    + Math.Pow(Canvas.GetTop(widgetHost) - origHostBounds.Y, 2));
-
-                if (distance > keyValuePairs[0].Value)
-                {
-                    if (!movedWidgetOrigins.ContainsKey(widgetHost))
-                    {
-                        movedWidgetOrigins[widgetHost] = GetRect(widgetHost);
-                        widgetHost.Width -= 5;
-                        widgetHost.Height -= 5;
-                    }
-
-                    Canvas.SetTop(widgetHost, keyValuePairs[0].Key.Y);
-                    Canvas.SetLeft(widgetHost, keyValuePairs[0].Key.X);
-                }
-            }
-
-            //if(Canvas.GetTop(editWidgetHost) != yLoc
-           //     || Canvas.GetLeft(editWidgetHost) != xLoc)
-           // {
-                /*foreach(WidgetHost host in widgetHosts)
-                {
-                    if (editWidgetHost.Equals(host))
-                        continue;
-
-                    Rect hostBounds = GetRect(host);
-                    Rect origHostBounds = GetRect(host);
-
-                    if (movedWidgetOrigins.ContainsKey(host))
-                    {
-                        TryMoveLeftTowardsPreviousSpot(host, controlBounds);
-
-                        if (!movedWidgetOrigins[host].IntersectsWith(controlBounds))
-                        {
-                            Canvas.SetTop(host, movedWidgetOrigins[host].Top);
-                            Canvas.SetLeft(host, movedWidgetOrigins[host].Left);
-
-                            host.Height = movedWidgetOrigins[host].Height+1;
-                            host.Width = movedWidgetOrigins[host].Width+1;
-                            movedWidgetOrigins.Remove(host);
-                            continue;
-                        }
-                    }
-
-                    if (controlBounds.IntersectsWith(hostBounds))
-                    {
-                        int offsetX = 50;
-                        int offsetY = 50;
-
-                        bool offsetLocFound = false;
-
-                        hostBounds = origHostBounds;
-
-                        while (!offsetLocFound && hostBounds.Right < Width-50)
-                        {
-                            hostBounds.Offset(offsetX, 0);
-
-                            if (!controlBounds.IntersectsWith(hostBounds))
-                            {
-                                offsetLocFound = true;
-                            }
-                        }
-
-                        if(!offsetLocFound)
-                            hostBounds = origHostBounds;
-
-                        offsetX = -50;
-
-                        while (!offsetLocFound && hostBounds.Left > 0)
-                        {
-                            hostBounds.Offset(offsetX, 0);
-
-                            if (!controlBounds.IntersectsWith(hostBounds))
-                            {
-                                offsetLocFound = true;
-                            }
-                        }
-
-                        if (offsetLocFound)
-                        {
-                            if (!movedWidgetOrigins.ContainsKey(host))
-                            {
-                                movedWidgetOrigins[host] = GetRect(host);
-                                host.Width -= 5;
-                                host.Height -= 5;
-                            }
-                                
-
-                            Canvas.SetTop(host, hostBounds.Top);
-                            Canvas.SetLeft(host, hostBounds.Left);
-                        }
-                        
-                    }
-                }*/
-            //}
 
             Canvas.SetTop(editWidgetHost, yLoc);
             Canvas.SetLeft(editWidgetHost, xLoc);
 
         }
 
-        private IOrderedEnumerable<KeyValuePair<Point, double>> OrderedDistancesToFreeAreas(WidgetHost widgetHost)
+        private void TryToMoveMovedWidgetsToOrigins()
+        {
+            foreach (WidgetHost widgetHost in movedWidgetOrigins.Keys)
+            {
+                Rect origHostBounds = movedWidgetOrigins[widgetHost];
+                var shortestDistance = ShortestDistancesToFreeAreas(widgetHost);
+
+                double distance = Math.Sqrt(Math.Pow((Canvas.GetLeft(widgetHost) - origHostBounds.X), 2)
+                                            + Math.Pow(Canvas.GetTop(widgetHost) - origHostBounds.Y, 2));
+
+                if (distance > shortestDistance.Distance)
+                {
+                    if (!movedWidgetOrigins.ContainsKey(widgetHost))
+                    {
+                        movedWidgetOrigins[widgetHost] = GetRect(widgetHost);
+                        widgetHost.Width -= 5;
+                        widgetHost.Height -= 5;
+                    }
+
+                    Canvas.SetTop(widgetHost, shortestDistance.Y);
+                    Canvas.SetLeft(widgetHost, shortestDistance.X);
+                }
+            }
+        }
+
+        private PointDistance ShortestDistancesToFreeAreas(WidgetHost widgetHost)
         {
             Rect hostBounds = GetRect(widgetHost);
             Rect origHostBounds = movedWidgetOrigins.ContainsKey(widgetHost)
                 ? movedWidgetOrigins[widgetHost]
                 : GetRect(widgetHost);
 
-            List<KeyValuePair<Point, double>> distancesToFreeAreas = new List<KeyValuePair<Point, double>>();
+            List<PointDistance> distancesToFreeAreas = new List<PointDistance>();
 
             for (int y = 0; y < mainCanvas.ActualHeight; y += 50)
             {
@@ -338,16 +236,139 @@ namespace DashboardTest
 
                     Rect newRect = new Rect(x, y, origHostBounds.Width, origHostBounds.Height);
 
-                    if (!IntersectsOtherHosts(widgetHost, newRect, new[] {widgetHost}))
+                    if (!IntersectsOtherHosts(widgetHost, newRect, new[] { widgetHost }))
                     {
                         double distance = Math.Sqrt(Math.Pow((newRect.X - origHostBounds.X), 2)
                                                     + Math.Pow(newRect.Y - origHostBounds.Y, 2));
 
-                        distancesToFreeAreas.Add(new KeyValuePair<Point, double>(new Point(x, y), distance));
+                        distancesToFreeAreas.Add(new PointDistance(x, y, distance));
                     }
                 }
             }
-            return distancesToFreeAreas.OrderBy(kv => kv.Value);
+            return distancesToFreeAreas.OrderBy(pd => pd.Distance).First();
+        }
+
+        private Dictionary<WidgetHost, PointDistance> CalculateWidgetMovements(WidgetHost sourceWidget)
+        {
+            Rect controlBounds = GetRect(sourceWidget);
+            Dictionary<WidgetHost, PointDistance> returnWidgetMovements = new Dictionary<WidgetHost, PointDistance>();
+            foreach (WidgetHost widgetHost in widgetHosts)
+            {
+                if (sourceWidget.Equals(widgetHost))
+                    continue;
+
+                Rect hostBounds = GetRect(widgetHost);
+
+                if (!controlBounds.IntersectsWith(hostBounds) || returnWidgetMovements.ContainsKey(widgetHost))
+                    continue;
+
+                var widgetMovements = GetOptimalMovementsFor(widgetHost);
+
+                bool offsetLocFound = widgetMovements.Any();
+
+                if (offsetLocFound)
+                {
+                    foreach (var movedWidget in widgetMovements.Keys)
+                    {
+                        if (!movedWidgetOrigins.ContainsKey(movedWidget))
+                        {
+                            movedWidgetOrigins[movedWidget] = GetRect(widgetHost);
+                            widgetHost.Width -= 5;
+                            widgetHost.Height -= 5;
+                        }
+
+                        returnWidgetMovements[movedWidget] = widgetMovements[movedWidget];
+                    }
+
+                    
+                }
+            }
+
+            return returnWidgetMovements;
+        }
+
+        
+
+        private Dictionary<WidgetHost, PointDistance> GetOptimalMovementsFor(WidgetHost widgetHost)
+        {
+            Rect hostBounds = GetRect(widgetHost);
+            Rect origHostBounds = movedWidgetOrigins.ContainsKey(widgetHost)
+                ? movedWidgetOrigins[widgetHost]
+                : GetRect(widgetHost);
+
+            Dictionary<WidgetHost, PointDistance> optimalMovements = new Dictionary<WidgetHost, PointDistance>();
+            PointDistance shortestDistance = new PointDistance(hostBounds.X, hostBounds.Y, double.MaxValue);
+
+            for (int y = 0; y < mainCanvas.ActualHeight; y += 50)
+            {
+                for (int x = 0; x < mainCanvas.ActualWidth; x += 50)
+                {
+                    if (hostBounds.X == x && hostBounds.Y == y)
+                        continue;
+
+                    Rect newRect = new Rect(x, y, origHostBounds.Width, origHostBounds.Height);
+
+                    double distance = Math.Sqrt(Math.Pow((newRect.X - origHostBounds.X), 2)
+                                                    + Math.Pow(newRect.Y - origHostBounds.Y, 2));
+
+                    if (distance >= shortestDistance.Distance)
+                        continue;
+
+                    if (!IntersectsOtherHosts(widgetHost, newRect, new[] {widgetHost}))
+                    {
+                        shortestDistance.Distance = distance;
+                        shortestDistance.X = x;
+                        shortestDistance.Y = y;
+
+                        optimalMovements[widgetHost] = shortestDistance;
+                        continue;
+                    }
+
+                    optimalMovements[widgetHost] = shortestDistance;
+                }
+            }
+
+            return optimalMovements;
+        }
+
+        private IOrderedEnumerable<PointDistance> OrderedDistancesToOccupiedAreas(WidgetHost widgetHost, double terminalDistance)
+        {
+            Rect hostBounds = GetRect(widgetHost);
+            Rect origHostBounds = movedWidgetOrigins.ContainsKey(widgetHost)
+                ? movedWidgetOrigins[widgetHost]
+                : GetRect(widgetHost);
+
+            List<PointDistance> distancesToFreeAreas = new List<PointDistance>();
+
+            for (int y = 0; y < mainCanvas.ActualHeight; y += 50)
+            {
+                for (int x = 0; x < mainCanvas.ActualWidth; x += 50)
+                {
+                    if (hostBounds.X == x && hostBounds.Y == y)
+                        continue;
+
+                    Rect newRect = new Rect(x, y, origHostBounds.Width, origHostBounds.Height);
+
+                    double distance = Math.Sqrt(Math.Pow((newRect.X - origHostBounds.X), 2)
+                                                   + Math.Pow(newRect.Y - origHostBounds.Y, 2));
+
+                    if (distance < terminalDistance)
+                    {
+                        foreach (WidgetHost intersectedHost in GetIntersectingHosts(widgetHost, newRect, new WidgetHost[0]))
+                        {
+                            CalculateWidgetMovements(intersectedHost);
+                        }
+                    }
+
+                    if (!IntersectsOtherHosts(widgetHost, newRect, new[] { widgetHost }))
+                    {
+                       
+
+                        distancesToFreeAreas.Add(new PointDistance(x, y, distance));
+                    }
+                }
+            }
+            return distancesToFreeAreas.OrderBy(pd => pd.Distance);
         }
 
         private bool IntersectsOtherHosts(WidgetHost host, Rect newHostLoc, IEnumerable<WidgetHost> exclusions)
@@ -481,6 +502,21 @@ namespace DashboardTest
             path.Fill = cornerBrush;
 
             return path;
+        }
+
+        private struct PointDistance
+        {
+            public double X;
+            public double Y;
+
+            public double Distance;
+
+            public PointDistance(double x, double y, double distance)
+            {
+                X = x;
+                Y = y;
+                Distance = distance;
+            }
         }
     }
 }
