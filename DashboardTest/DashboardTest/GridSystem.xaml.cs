@@ -210,7 +210,8 @@ namespace DashboardTest
 
         private void TryToMoveMovedWidgetsToOrigins()
         {
-            foreach (WidgetHost widgetHost in movedWidgetOrigins.Keys)
+            var keys = movedWidgetOrigins.Keys.ToArray();
+            foreach (WidgetHost widgetHost in keys)
             {
                 Rect origHostBounds = movedWidgetOrigins[widgetHost];
                 var shortestDistance = ShortestDistanceToFreeAreas(widgetHost);
@@ -361,23 +362,34 @@ namespace DashboardTest
                     Dictionary<WidgetHost, PointDistance> intersectedMovements =
                         new Dictionary<WidgetHost, PointDistance>();
 
-                    bool successfulMovement = true;
+                    bool successfulMovement =false;
 
                     foreach (var intersectedWidget in intersectedWidgets)
                     {
                         if (intersectedMovements.ContainsKey(intersectedWidget))
                             continue;
 
+                        Dictionary<WidgetHost, WidgetRect> newPreviewBoard = new Dictionary<WidgetHost, WidgetRect>();
+
+                        foreach (WidgetHost widgetHost in previewBoard.Keys)
+                        {
+                            newPreviewBoard[widgetHost] = previewBoard[widgetHost].Clone();
+                        }
+
                         Dictionary<WidgetHost, PointDistance> optimalIntersectedMovements = GetOptimalMovementsFor2(intersectedWidget,
                             immovableWidgets.Union(new[] { sourceHost }.Union(intersectedMovements.Keys)),
                             shortestDistance.Distance,
                             distance,
-                            previewBoard);
+                            newPreviewBoard);
 
-                        if (optimalMovements.Count == 0)
-                            continue;
+                        if (optimalIntersectedMovements.Count == 0)
+                        {
+                            successfulMovement = false;
+                            break;
+                        }
 
-
+                        successfulMovement = true;
+                            
                         foreach (var optimalIntersectedMovement in optimalIntersectedMovements)
                         {
                             intersectedMovements[optimalIntersectedMovement.Key] = optimalIntersectedMovement.Value;
@@ -386,7 +398,7 @@ namespace DashboardTest
                         distance += optimalIntersectedMovements.Sum(pd => pd.Value.Distance);
                     }
 
-                    if (distance >= shortestDistance.Distance || distance >= terminatingDistance)
+                    if (!successfulMovement || distance >= shortestDistance.Distance || distance >= terminatingDistance)
                         continue;
 
                     optimalMovements.Clear();
@@ -417,6 +429,11 @@ namespace DashboardTest
             {
                 Host = host;
                 Bounds = bounds;
+            }
+
+            public WidgetRect Clone()
+            {
+                return new WidgetRect(Host, new Rect(Bounds.Location, Bounds.Size));
             }
         }
 
